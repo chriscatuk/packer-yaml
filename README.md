@@ -1,6 +1,6 @@
 # Packer YAML
 
-Add and abstraction to Packer with a YAML file
+Add an abstraction layer to Packer via a YAML file.
 
 ## Requirements
 Python 3 venv installation:
