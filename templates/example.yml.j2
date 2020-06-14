@@ -1,0 +1,192 @@
+{# Set provisioners_dir and image_dir if they're not provided #}
+{% if ami.provisioners_dir is not defined %}{% set provisioners_dir='../../image/'+ami['name']+'/provisioners' %}{% endif %}
+{% if ami.image_dir is not defined %}{% set image_dir='../../image/'+ami['name'] %}{% endif %}
+
+{# Generate the full paths to the provisioners_dir and image_dir above #}
+{% set provisioners_dir=(app_filepath | dirname)+'/'+provisioners_dir %}
+{% set image_dir=(app_filepath | dirname)+'/'+image_dir %}
+
+{# Define AMI OS types #}
+{% set os_type={
+  "windows": ["ws2012R2", "ws2016", "ws2019", "ws2019full"],
+  "nix": ["amazon", "debian", "redhat", "ubuntu"]
+} %}
+
+{# Create a list of directories that contain scripts to run during Packer build #}
+{% set dirs_to_run_windows=["C:/Windows/Temp/run-during-image-build/"] %}
+{% set dirs_to_run_nix=["/tmp/run-during-image-build/"] %}
+{% set dirs_to_run_playbooks=[image_dir+"/playbooks-image-build/"] %}
+
+{# Replace lines in user-specified provisioners #}
+{% macro folderreplace(line) -%}
+{{ line | 
+replace('[sys_common]', sys_common_dir) | 
+replace('[provisioners_dir]', provisioners_dir) | 
+replace('[image_dir]', image_dir) | 
+replace('\\', '\\\\') 
+}}
+{%- endmacro %}
+
+{# PACKER DEFINITIONS BELOW THIS LINE #}
+builders: 
+  - type: "amazon-ebs"
+    region: "{{ region }}"
+    vpc_id: "{{ packer_vpc }}"
+    subnet_id: "{{ packer_subnet }}"
+    temporary_security_group_source_cidr: "{{ network.accounts.mgmt.cidr[0] }}"
+    instance_type: "{{ ami.instance_type | default('t2.large') }}"
+{% if (ami.spot|default(True)|bool) %}
+    spot_price: auto
+    spot_price_auto_product: "{% if ami.base in os_type.windows %}Windows{% else %}Linux/UNIX{% endif %}"
+{% endif %}
+    iam_instance_profile: "packer"
+    encrypt_boot: true
+    source_ami: "{{ ami_id }}"
+    ami_name: "{{ ami.name }}-{{ timestamp }}"
+    shutdown_behavior: "terminate"
+    ssh_username: "ec2-user"
+    run_tags:
+      Name: "Packer Builder for {{ ami.name }}"
+      role: "Packer"
+      env: "{{ env }}"
+      region: "{{ region }}"
+    run_volume_tags:
+      Name: "Packer volume for {{ ami.name }}"
+      role: "Packer"
+    tags:
+      OS_Version: "{{ ami.base }}"
+      Name: "{{ ami.name }}"
+{% if ami.tags is defined %}{% for key,value in ami.tags.items() %}
+      {{ key }}: "{{ value }}"
+{% endfor %}{% endif %}
+
+{% if ami.launch_block_device_mappings is defined %}
+    launch_block_device_mappings:
+{% for device in ami.launch_block_device_mappings | default( [] ) %}
+      -
+{% for key,value in device.items() %}
+        {{ key }}:  "{{ value }}"
+{% endfor %}
+{% endfor %}
+{% endif %}
+
+{% if ami.block_device_mappings is defined %}
+    block_device_mappings: 
+{% for device in ami.block_device_mappings | default( [] ) %}
+      -
+{% for key,value in device.items() %}
+        {{ key }}:  "{{ value }}"
+{% endfor %}
+{% endfor %}
+{% endif %}
+
+provisioners:
+{#######################################}
+{########## COPY DIRECTORIES ###########}
+{#######################################}
+{% for to_copy in dirs_to_copy %}{% if (ami.base in os_type.windows) and (to_copy.destination_windows is defined) and (to_copy.source is exists) %}
+  - type: 'file'
+    source: '{{ to_copy.source }}'
+    destination: '{{ to_copy.destination_windows }}'
+{% elif (ami.base in os_type.nix) and (to_copy.destination_nix is defined) and (to_copy.source is exists) %}
+  - type: 'file'
+    source: '{{ to_copy.source }}'
+    destination: '{{ to_copy.destination_nix }}'
+{% endif %}{% endfor %}
+{#######################################}
+{######## END COPY DIRECTORIES #########}
+{#######################################}
+
+{#######################################}
+{# GENERATE USER-SPECIFIED PROVISIONERS#}
+{#######################################}
+{% for prov in ami.provisioners | default( [] ) %}
+  - 
+{% for key,value in prov.items() %}
+
+{# START Write out key/value pairs straight from provisioners #}
+{# Skip the 'extra_vars' key - append user's extra arguments onto our default list later #}
+{% if (key not in ['extra_vars']) %}
+    {{ key }}: 
+    
+{% if key == 'inline'%}
+{% for line in value %}
+      - {{ folderreplace(line) }}
+{% endfor %}
+{% else %}
+      {{ folderreplace( value ) }}
+{% endif %}
+
+{% endif %}
+{# END Write out key/value pairs #}
+
+{% if (key == 'type') and (value in ['powershell','shell', 'shell-local']) %}
+    environment_vars:
+      - "env={{ env }}"
+      - "env_short={{ env_short }}"
+      - "region={{ region }}"
+      - "region_short={{ regions[region].short }}"
+{% if prov.extra_vars is defined %}{% for key,value in prov.extra_vars.items() %}
+      - "{{ key }}={{ value }}"
+{% endfor %}{% endif %}
+{% if ami.extra_vars is defined %}{% for key,value in ami.extra_vars.items() %}
+      - "{{ key }}={{ value }}"
+{% endfor %}{% endif %}
+{% endif %}
+
+{% if (key == 'type') and (value in ['ansible']) %}
+    extra_arguments:
+      - "-v"
+      - "--extra-vars"
+      - "env={{ env }} env_short={{ env_short }} region={{ region }} region_short={{ regions[region].short }} {% if prov.extra_vars is defined %}{% for key,value in prov.extra_vars.items() %} {{ key }}='{{ value }}' {% endfor %}{% endif %}{% if ami.extra_vars is defined %}{% for key,value in ami.extra_vars.items() %} {{ key }}='{{ value }}' {% endfor %}{% endif %}"
+{% endif %}
+
+{% endfor %}
+
+{% endfor %}
+{#######################################}
+{### END USER-SPECIFIED PROVISIONERS ###}
+{#######################################}
+
+{#######################################}
+{## RUN ANSIBLE PLAYBOOK PROVISIONERS ##}
+{#######################################}
+{% for playbook_dir in dirs_to_run_playbooks %}{% if (playbook_dir is exists) %}{% for playbook in lookup('fileglob', playbook_dir+'/*.yml') %}
+  - type: 'ansible'
+    playbook_file: '{{ playbook }}'
+    extra_arguments:
+      - "-v"
+      - "--extra-vars"
+      - "env={{ env }} env_short={{ env_short }} region={{ region }} region_short={{ regions[region].short }} {% if ami.extra_vars is defined %}{% for key,value in ami.extra_vars.items() %} {{ key }}='{{ value }}' {% endfor %}{% endif %}"
+{% endfor %}{% endif %}{% endfor %}
+{#######################################}
+{## END ANSIBLE PLAYBOOK PROVISIONERS ##}
+{#######################################}
+
+{#######################################}
+{####### START NIX PROVISIONERS ########}
+{#######################################}
+{% if ami.base in os_type.nix %}
+
+{% for directory in dirs_to_run_nix %}
+  - type: "shell"
+    inline:
+      - "run-parts '{{ directory }}' &"
+    environment_vars:
+      - "env={{ env }}"
+      - "region={{ region }}"
+{% if ami.extra_vars is defined %}{% for key,value in ami.extra_vars.items() %}
+      - "{{ key }}={{ value }}"
+{% endfor %}{% endif %}
+{% endfor %}
+
+{% endif %}
+{#######################################}
+{######## END NIX PROVISIONERS #########}
+{#######################################}
+
+post-processors:
+  - 
+    - output: "manifest.json"
+      strip_path: true
+      type: "manifest"
