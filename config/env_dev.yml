@@ -1,0 +1,11 @@
+---
+
+#
+# vpc config for Packer
+#
+
+env:
+  vpc: vpc-1234
+  subnet: subnet-1234
+  sg: sg-1234
+  profile_name: packer

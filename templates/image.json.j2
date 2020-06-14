@@ -1,0 +1,50 @@
+{
+  "variables": {
+    "app_name": "",
+    "region":  "",
+    "vpc": "",
+    "subnet": "",
+    "ami": "",
+    "version": "",
+  },
+  "builders": [
+    {
+      "type": "amazon-ebs",
+      "region": "{{user `region`}}",
+      "vpc_id": "{{user `vpc`}}",
+      "subnet_id": "{{user `subnet`}}",
+      "instance_type": "t3.large",
+      "iam_instance_profile": "packer",
+      "encrypt_boot": true,
+      "source_ami": "{{user `ami`}}",
+      "ami_name": "{{user `app_name`}}-{{isotime \"20060102150405\"}}",
+      "run_tags": {
+        "Name": "Packer Builder for {{user `app_name`}}",
+        "role": "packer",
+      },
+      "tags": {
+        "Name": "{{user `app_name`}}",
+        "Date": "{{isotime \"20060102150405\"}}",
+      },
+      "ssh_username": "ec2-user",
+      "shutdown_behavior": "terminate"
+    }
+  ],
+  "provisioners": [
+    {
+      "type": "ansible",
+      "playbook_file": "./playbooks/server.yml",
+      "extra_arguments": [ "-v", "--extra-vars", "region={{user `region`}} region_short={{user `region_short`}} env={{user `env`}}  env_short={{user `env_short`}}" ]
+    }
+  ],
+  "post-processors": [
+    [
+      {
+        "output": "manifest.json",
+        "strip_path": true,
+        "type": "manifest"
+      }
+    ]
+  ]
+
+}
