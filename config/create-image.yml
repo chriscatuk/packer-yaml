@@ -1,0 +1,64 @@
+
+- name: Create image
+  hosts: localhost
+  gather_facts: no
+  connection: local
+
+  tasks:
+  
+    # pwd is the playbook folder, so go up to automation root
+    - name: Get dir path of chosen yaml file
+      set_fact:
+        yaml_dir_path: "../../{{ app_filepath | dirname }}"
+        
+    - name: Find parent file
+      stat: 
+        path: "{{ yaml_dir_path }}/{{ parent_file }}"
+      register: stat_parent_file
+      when: parent_file is defined
+      failed_when: parent_file is defined and not stat_parent_file.stat.exists
+    
+    - name: Parent file defined but not found
+      debug:
+        msg: Parent file {{ yaml_dir_path }}/{{ parent_file }} not found.
+      when: parent_file is defined and not stat_parent_file.stat.exists
+
+    - name: Load variables from parent file if defined
+      include_vars:
+        file: "{{ stat_parent_file.stat.path }}"
+      when: stat_parent_file.stat is defined and stat_parent_file.stat.exists
+    
+    - name: Load variables from child file again so it takes precendence
+      include_vars:
+        file: "../../{{ app_filepath }}"
+      when: stat_parent_file.stat is defined and stat_parent_file.stat.exists
+
+
+    - name: Set Regions & Timestamp
+      set_fact:
+        timestamp: "{{ lookup('pipe', 'date +%Y%m%d%H%M%S%5N') }}"
+
+    - fail:
+       msg: No ami config found
+      when:  ([ami] | select('defined') | list | length) == 0 
+      
+    - fail:
+       msg: purpose tag must be set
+      when: purpose is undefined 
+      
+    - set_fact:
+        sys_common_dir: "{{ ansible_dir }}/systems/sys_common"
+        packer_vpc: "{{ network.accounts[env].build.vpc }}"
+        packer_subnet: "{{ network.accounts[env].build.subnet }}"
+        template_dir: "{{ 'templates/'+vendor }}"
+        basegithash: "{{ basegithash.stdout }}"
+        baseversion: "{{ baseversion.stdout }}"
+        baseami: "{{ baseami.stdout }}"
+
+    - name: Generate Packer image.json
+      copy:
+        content: "{{ item | from_yaml | to_nice_json }}"
+        dest: {{ tmpdir }}genimage.json
+      with_template: "{{ ansible_dir }}/{{ template_dir }}/packer.yml.j2"
+      loop_control:
+        label: "Generated Packer YAML and converted to JSON successfully."
