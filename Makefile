@@ -23,7 +23,7 @@ TMPDIR := $(shell mktemp -d)
 debug:
 	# empty to make make happy
 
-image-build: stats branchcheck 
+image-build: 
 	@#use packer to build AMI
 
 	vpc=`niet network.accounts.$(env).build.vpc $(AUTO_ROOT)/config/vpc.yml `
