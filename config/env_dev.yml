@@ -1,11 +1,27 @@
 ---
-
 #
-# vpc config for Packer
+# Shared config for Packer
 #
 
-env:
-  vpc: vpc-1234
-  subnet: subnet-1234
-  sg: sg-1234
-  profile_name: packer
+packer_envs:
+  prod:
+    vpc: vpc-1234
+    subnet: subnet-1234
+    sg: sg-1234
+    instance_profile: packer
+  non-prod:
+    vpc: vpc-4321
+    subnet: subnet-4321
+    sg: sg-4321
+    instance_profile: packer
+
+base-images:
+  amz1:
+    name: amzn1-ami-hvm-*-x86_64-gp2
+    owner: amazon
+  amz2:
+    name: amzn2-ami-hvm-*-x86_64-gp2
+    owner: amazon
+  my_debian:
+    name: name_of_my_debian_ami
+    owner: 111111111111
