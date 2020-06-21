@@ -29,5 +29,5 @@ pip3 install -r requirements.txt
 
 And use this commandline to produce template
 ``` bash
- ansible-playbook test.yml  -e @automation/config/vpc.yml -e @automation/config/aws.yml -i localhost
+ansible-playbook test.yml  -e @config/vpc.yml -i localhost
 ```
