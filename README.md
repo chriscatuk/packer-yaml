@@ -3,6 +3,10 @@
 Add an abstraction layer to Packer via a YAML file.
 
 ## Requirements
+
+- Ansible
+- Jinja2 via Python (follow instructions below)
+
 Python 3 venv installation:
 
 ``` bash
