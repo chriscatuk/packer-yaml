@@ -1,21 +1,21 @@
 {
   "variables": {
     "app_name": "",
-    "region":  "",
-    "vpc": "",
-    "subnet": "",
-    "ami": "",
     "version": "",
   },
   "builders": [
     {
       "type": "amazon-ebs",
-      "region": "{{user `region`}}",
-      "vpc_id": "{{user `vpc`}}",
-      "subnet_id": "{{user `subnet`}}",
-      "instance_type": "t3.large",
-      "iam_instance_profile": "packer",
-      "encrypt_boot": true,
+      "region": "{{ packer_defaults.region }}",
+      "vpc_id": "{{ packer_envs.non-prod.vpc }}",
+      "subnet_id": "{{ packer_envs.non-prod.subnet }}",
+      "instance_type": "{{ packer_defaults.instance_type | default('t2.micro') }}",
+      "iam_instance_profile": "{{ packer_envs.non-prod.instance_profile }}",
+      "encrypt_boot": "{{ packer_defaults.encrypt_ami | default('false') }}",
+      {% if (packer_defaults.use_spot_instances|default(True)|bool) %}
+          "encrypt_boot": "auto",
+          "spot_price_auto_product": "linux"
+      {% endif %}
       "source_ami": "{{user `ami`}}",
       "ami_name": "{{user `app_name`}}-{{isotime \"20060102150405\"}}",
       "run_tags": {

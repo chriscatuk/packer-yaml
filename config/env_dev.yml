@@ -3,6 +3,12 @@
 # Shared config for Packer
 #
 
+packer_defaults:
+  instance_type: t3.micro
+  use_spot_instances: false
+  region: us-east-1
+  encrypt_ami: false
+
 packer_envs:
   prod:
     vpc: vpc-1234
@@ -15,7 +21,7 @@ packer_envs:
     sg: sg-4321
     instance_profile: packer
 
-base-images:
+packer_baseimages:
   amz1:
     name: amzn1-ami-hvm-*-x86_64-gp2
     owner: amazon
