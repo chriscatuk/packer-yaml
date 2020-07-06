@@ -1,0 +1,39 @@
+---
+#
+# Shared config for Packer
+#
+
+app_name: app-packer-demo
+
+build_image:
+  base_ami: amz2
+  regions:
+    main: us-east-1
+    # copies:
+    #   - eu-west-1
+    accounts_shared_with:
+      - prod
+
+  instance_type: t3.small
+  encrypt_ami: false
+  #use_spot_instances: false
+  #instance_profile: my_particular_profile
+
+  tags:
+    - cost_id: 123
+    - product_owner: chris
+
+  provisioners:
+    - type: file
+      destination: /tmp/
+      source: ./filename.txt
+    - type: shared_playbook
+      name: JDK
+      version: 11
+    - type: shell
+      inline:
+        - "#!/bin/bash -e"
+        - "set -x"
+        - "# Download App"
+        - "echo App was successfully downloaded!"
+        - "echo Your AMI is ready"
