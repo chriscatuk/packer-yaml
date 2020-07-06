@@ -1,53 +1,26 @@
-# Editors
-.vscode/
-.idea/
-
-# Vagrant
-.vagrant/
-
-# Mac/OSX
+# OS Files
+# OS X
+*.DS_Store
 .DS_Store
+.DS_Store*
 
-# Windows
-Thumbs.db
+# Thumbnails
+._*
 
-# Source for the following rules: https://raw.githubusercontent.com/github/gitignore/master/Python.gitignore
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
+# Files that might appear in the root of a volume
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
 
-# C extensions
-*.so
+# Linux stuff you don't want
+.Trash*
+.thumbnails
 
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-
-# pyenv
-.python-version
-
-# Environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
+# Generated packer templates
+genimage.json
+temp.json
+manifest.json

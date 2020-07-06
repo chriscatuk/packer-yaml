@@ -1,0 +1,35 @@
+- name: Create image
+  hosts: localhost
+  gather_facts: no
+  connection: local
+  vars:
+    tmpdir: ""
+    app_configfile: ""
+    ansible_dir: ""
+    timestamp: ""
+
+  tasks:
+    - name: Include vars of config file
+      include_vars:
+        file: "{{ ansible_dir }}/config_env_packer.yml"
+        name: config_env
+
+    - name: Include vars of app file
+      include_vars:
+        file: "{{ app_configfile }}"
+        name: app
+
+    - name: Timestamp with current date time
+      set_fact: timestamp="{{lookup('pipe','date \"+%Y%m%d%H%M%S\"')}}"
+
+      # https://stackoverflow.com/questions/31383693/how-to-create-a-file-locally-with-ansible-templates-on-the-development-machine
+    - name: Template file to genimage.json
+      template:
+        src: "{{ ansible_dir }}/templates/linux.json.j2"
+        dest: "{{ tmpdir }}/genimage.json"
+
+    # Prettify JSON File
+    - copy:
+        content: "{{ item | from_json | to_nice_json }}"
+        dest: "{{ tmpdir }}/genimage.json"
+      with_template: "{{ tmpdir }}/genimage.json"
