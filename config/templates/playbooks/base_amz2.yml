@@ -26,6 +26,7 @@
       yum:
         name:
           - curl
+          - unzip
           - python
           - unzip
           - python-pip
@@ -37,6 +38,5 @@
     - name: Install base tools (Python)
       pip:
         name:
-          - awscli
           - boto3
       become: true

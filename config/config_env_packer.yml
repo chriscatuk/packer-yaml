@@ -1,33 +1,38 @@
 ---
 #
-# Shared config for Packer
+# Shared config for image builds with Packer
 #
 
-packer_defaults:
+defaults:
   instance_type: t3.micro
-  use_spot_instances: false
+  use_spot_instances: true
   region: us-east-1
   encrypt_ami: false
+  instance_profile: packer
+  regions:
+    main: us-east-1
+    copies: [] # no copy to other regions by default
+    # - eu-west-1
+    accounts_shared_with: [] # no access from other accounts by default
+    # - prod
 
-packer_envs:
-  prod:
-    vpc: vpc-1234
-    subnet: subnet-1234
-    sg: sg-1234
-    instance_profile: packer
-  non-prod:
-    vpc: vpc-4321
-    subnet: subnet-4321
-    sg: sg-4321
-    instance_profile: packer
-
-packer_baseimages:
-  amz1:
-    name: amzn1-ami-hvm-*-x86_64-gp2
-    owner: amazon
-  amz2:
-    name: amzn2-ami-hvm-*-x86_64-gp2
-    owner: amazon
-  my_debian:
-    name: name_of_my_debian_ami
-    owner: 111111111111
+settings:
+  env: training
+  envs:
+    prod:
+      account_id: 123213123123
+      vpc: vpc-1234
+      subnet: subnet-1234
+      sg: sg-1234
+    training:
+      account_id: 321321321321
+      vpc: vpc-1234
+      subnet: subnet-1234
+      sg: sg-1234
+  base_images:
+    amz1:
+      name: amzn1-ami-hvm-*-x86_64-gp2
+      owner: amazon
+    amz2:
+      name: amzn2-ami-hvm-*-x86_64-gp2
+      owner: amazon

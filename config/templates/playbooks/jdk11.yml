@@ -1,0 +1,49 @@
+# playbook to configure the baseline amazon server
+
+- name: Java JDK 11
+
+  hosts: all
+  gather_facts: yes
+
+  tasks:
+    - name: Check distribution
+      debug:
+        msg: "ansible_distribution: {{ ansible_distribution }} - ansible_distribution_version: {{ ansible_distribution_version }}"
+
+    - name: amz2 - Install JDK11
+      shell: "amazon-linux-extras install java-openjdk11"
+      when:
+        - ansible_distribution == "Amazon"
+        - ansible_distribution_version == "(Karoo)"
+      become: true
+
+    - name: amz1 - S3 Download JDK11 installer
+      aws_s3:
+        bucket: trainingsoftwareinstall
+        object: /java/OpenJDK11U-jdk_x64_linux_hotspot_11.0.4_11.tar.gz
+        dest: /tmp/OpenJDK11U-jdk_x64_linux_hotspot_11.0.4_11.tar.gz
+        mode: get
+        overwrite: different
+        permission: private
+        region: us-east-1
+      when:
+        - ansible_distribution == "Amazon"
+        - ansible_distribution_version != "(Karoo)"
+      become: true
+
+    - name: amz1 - Add JDK11
+      shell: |
+        tar -xf /tmp/OpenJDK11U-jdk_x64_linux_hotspot_11.0.4_11.tar.gz -C /usr/lib/jvm
+        cd /etc/alternatives/
+        # unlink java
+        ln -s /usr/lib/jvm/jdk-11.0.4+11/bin/java java
+        # unlink jre
+        ln -s /usr/lib/jvm/jdk-11.0.4+11 jre
+        rm -f /usr/lib/jvm/jre
+        ln -s /etc/alternatives/jre /usr/lib/jvm/jre
+        # Check if Java command exists (whole block will fail only on last command)
+        command -v /usr/lib/jvm/jre/bin/java
+      when:
+        - ansible_distribution == "Amazon"
+        - ansible_distribution_version != "(Karoo)"
+      become: true

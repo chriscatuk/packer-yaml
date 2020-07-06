@@ -1,50 +1,71 @@
 {
-  "variables": {
-    "app_name": "",
-    "version": "",
-  },
+  "variables": {},
   "builders": [
     {
       "type": "amazon-ebs",
-      "region": "{{ packer_defaults.region }}",
-      "vpc_id": "{{ packer_envs.non-prod.vpc }}",
-      "subnet_id": "{{ packer_envs.non-prod.subnet }}",
-      "instance_type": "{{ packer_defaults.instance_type | default('t2.micro') }}",
-      "iam_instance_profile": "{{ packer_envs.non-prod.instance_profile }}",
-      "encrypt_boot": "{{ packer_defaults.encrypt_ami | default('false') }}",
-      {% if (packer_defaults.use_spot_instances|default(True)|bool) %}
-          "encrypt_boot": "auto",
-          "spot_price_auto_product": "linux"
+      "region": "{{ app.build_image.regions.main | default(config_env.defaults.regions.main) }}",
+      "vpc_id": "{{ config_env.settings.envs[config_env.settings.env].vpc }}",
+      "subnet_id": "{{ config_env.settings.envs[config_env.settings.env].subnet }}",
+      "security_group_id" : "{{ config_env.settings.envs[config_env.settings.env].sg }}",
+      "instance_type": "{{ app.build_image.instance_type | default(config_env.defaults.instance_type) }}",
+      "iam_instance_profile": "{{ app.build_image.instance_profile | default(config_env.defaults.instance_profile) }}",
+      "encrypt_boot": "{{ app.build_image.encrypt_ami | default(config_env.defaults.encrypt_ami) }}",
+      {# Spot Instance Cost Saving #}
+      {% if (app.build_image.use_spot_instances|default(config_env.defaults.use_spot_instances)|bool) %}
+          "spot_price": "auto",
       {% endif %}
-      "source_ami": "{{user `ami`}}",
-      "ami_name": "{{user `app_name`}}-{{isotime \"20060102150405\"}}",
+
+      "source_ami_filter":  {
+                "filters": {
+                    "virtualization-type": "hvm",
+                    "name": "{{ config_env.settings.base_images[app.build_image.base_ami].name }}",
+                    "root-device-type": "ebs"
+                },
+                "owners": [
+                    "{{ config_env.settings.base_images[app.build_image.base_ami].owner }}"
+                ],
+                "most_recent": true
+      },
+      "ami_name": "{{ app.app_name }}-{{ timestamp }}",
       "run_tags": {
-        "Name": "Packer Builder for {{user `app_name`}}",
-        "role": "packer",
+        {% for tag in app.build_image.tags | default( [] ) %}{% for key,value in tag.items() %}
+        
+        "{{ key }}":  "{{ value }}",
+        {% endfor %}{% endfor %}
+        "Name": "Packer Builder for {{ app.app_name }}",
+        "role": "packer"
       },
       "tags": {
-        "Name": "{{user `app_name`}}",
-        "Date": "{{isotime \"20060102150405\"}}",
+          {% for tag in app.build_image.tags | default( [] ) %}{% for key,value in tag.items() %}
+          
+          "{{ key }}":  "{{ value }}",
+          {% endfor %}{% endfor %}
+          "Name": "{{ app.app_name }}"
       },
+      "ami_users": [
+          {% for account_shared_with in app.build_image.regions.accounts_shared_with | default(config_env.defaults.regions.accounts_shared_with) %}
+          "{{ config_env.settings.envs[account_shared_with].account_id }}"{{ "," if not loop.last else "" }}
+          {% endfor %}
+      ],
+      "ami_regions": [
+          {% for region_copy in app.build_image.regions.copies | default(config_env.defaults.regions.copies) %}
+          "{{ region_copy }}"{{ "," if not loop.last else "" }}
+          {% endfor %}
+      ],
       "ssh_username": "ec2-user",
       "shutdown_behavior": "terminate"
     }
   ],
   "provisioners": [
+    {% for provisioner in app.build_image.provisioners | default([]) %}{
+    {% for key,value in provisioner.items() %}
+      "{{ key }}":  {{ value  | from_yaml | to_nice_json }}{{ "," if not loop.last else "" }}
+    {% endfor %}
+    },{% endfor %}
     {
       "type": "ansible",
-      "playbook_file": "./playbooks/server.yml",
-      "extra_arguments": [ "-v", "--extra-vars", "region={{user `region`}} region_short={{user `region_short`}} env={{user `env`}}  env_short={{user `env_short`}}" ]
+      "playbook_file": "{{ ansible_dir }}/templates/playbooks/base_amz2.yml",
+      "extra_arguments": [ "-v", "--extra-vars", "region={{ config_env.defaults.region }} app_name={{ app.app_name }}" ]
     }
-  ],
-  "post-processors": [
-    [
-      {
-        "output": "manifest.json",
-        "strip_path": true,
-        "type": "manifest"
-      }
-    ]
   ]
-
 }
